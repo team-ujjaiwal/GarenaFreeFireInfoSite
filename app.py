@@ -8,7 +8,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from proto import FreeFire_pb2, main_pb2, AccountPersonalShow_pb2
+import FreeFire_pb2
+import main_pb2
+import AccountPersonalShow_pb2
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
 from Crypto.Cipher import AES
