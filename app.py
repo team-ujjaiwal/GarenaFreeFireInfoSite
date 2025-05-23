@@ -63,24 +63,45 @@ async def get_access_token(account: str):
     headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip", 'Content-Type': "application/x-www-form-urlencoded"}
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
+        print("Access Token Response:", resp.text)
         data = resp.json()
         return data.get("access_token", "0"), data.get("open_id", "0")
 
 async def create_jwt(region: str):
     account = get_account_credentials(region)
     token_val, open_id = await get_access_token(account)
-    body = json.dumps({"open_id": open_id, "open_id_type": "4", "login_token": token_val, "orign_platform_type": "4"})
+
+    if token_val == "0" or open_id == "0":
+        raise Exception(f"Failed to fetch token for region: {region}. Guest account may be blocked.")
+
+    body = json.dumps({
+        "open_id": open_id,
+        "open_id_type": "4",
+        "login_token": token_val,
+        "orign_platform_type": "4"
+    })
+
     proto_bytes = await json_to_proto(body, FreeFire_pb2.LoginReq())
     payload = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, proto_bytes)
+
     url = "https://loginbp.ggblueshark.com/MajorLogin"
     headers = {
         'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
         'Content-Type': "application/octet-stream", 'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1", 'X-GA': "v1 1", 'ReleaseVersion': RELEASEVERSION
     }
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, FreeFire_pb2.LoginRes)))
+
+        if resp.status_code != 200:
+            raise Exception(f"LoginRes request failed. HTTP {resp.status_code}")
+
+        try:
+            msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, FreeFire_pb2.LoginRes)))
+        except Exception as err:
+            raise Exception("Error parsing message with type 'LoginRes'. Possibly invalid token or server response.")
+
         cached_tokens[region] = {
             'token': f"Bearer {msg.get('token','0')}",
             'region': msg.get('lockRegion','0'),
