@@ -8,14 +8,13 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
+import FreeFire_pb2
+import main_pb2
+import AccountPersonalShow_pb2
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
 from Crypto.Cipher import AES
 import base64
-
-import FreeFire_pb2
-import main_pb2
-import AccountPersonalShow_pb2
 
 # === Settings ===
 MAIN_KEY = base64.b64decode('WWcmdGMlREV1aDYlWmNeOA==')
@@ -51,7 +50,7 @@ async def json_to_proto(json_data: str, proto_message: Message) -> bytes:
 def get_account_credentials(region: str) -> str:
     r = region.upper()
     if r == "IND":
-        return "uid=3862237040&password=B4397B023DDDFC62E3FCFDED76CF3F2AFE966E4DC402F1CD49DE5A9F5B2A4889"
+        return "uid3892341508&password=B78C0F8F5A2FDA93948C2966DE26DD7A0681EF6C2F09A5C10629E50C4D6341B4"
     elif r in {"BR", "US", "SAC", "NA"}:
         return "uid=3788023112&password=5356B7495AC2AD04C0A483CF234D6E56FB29080AC2461DD51E0544F8D455CC24"
     else:
@@ -64,45 +63,24 @@ async def get_access_token(account: str):
     headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip", 'Content-Type': "application/x-www-form-urlencoded"}
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        print("Access Token Response:", resp.text)
         data = resp.json()
         return data.get("access_token", "0"), data.get("open_id", "0")
 
 async def create_jwt(region: str):
     account = get_account_credentials(region)
     token_val, open_id = await get_access_token(account)
-
-    if token_val == "0" or open_id == "0":
-        raise Exception(f"Failed to fetch token for region: {region}. Guest account may be blocked.")
-
-    body = json.dumps({
-        "open_id": open_id,
-        "open_id_type": "4",
-        "login_token": token_val,
-        "orign_platform_type": "4"
-    })
-
+    body = json.dumps({"open_id": open_id, "open_id_type": "4", "login_token": token_val, "orign_platform_type": "4"})
     proto_bytes = await json_to_proto(body, FreeFire_pb2.LoginReq())
     payload = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, proto_bytes)
-
     url = "https://loginbp.ggblueshark.com/MajorLogin"
     headers = {
         'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
         'Content-Type': "application/octet-stream", 'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1", 'X-GA': "v1 1", 'ReleaseVersion': RELEASEVERSION
     }
-
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-
-        if resp.status_code != 200:
-            raise Exception(f"LoginRes request failed. HTTP {resp.status_code}")
-
-        try:
-            msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, FreeFire_pb2.LoginRes)))
-        except Exception as err:
-            raise Exception("Error parsing message with type 'LoginRes'. Possibly invalid token or server response.")
-
+        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, FreeFire_pb2.LoginRes)))
         cached_tokens[region] = {
             'token': f"Bearer {msg.get('token','0')}",
             'region': msg.get('lockRegion','0'),
@@ -233,10 +211,8 @@ def get_account_info():
         return_data = asyncio.run(GetAccountInformation(uid, "7", region, "/GetPlayerPersonalShow"))
         formatted = format_response(return_data)
         return jsonify(formatted), 200
-    except ValueError as ve:
-        return jsonify({"error": str(ve)}), 400
     except Exception as e:
-        return jsonify({"error": f"Server Error: {str(e)}"}), 500
+        return jsonify({"error": f"Invalid UID or Region. Please check and try again."}), 500
 
 @app.route('/refresh', methods=['GET', 'POST'])
 def refresh_tokens_endpoint():
