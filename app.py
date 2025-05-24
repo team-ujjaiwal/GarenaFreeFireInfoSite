@@ -20,7 +20,7 @@ import base64
 MAIN_KEY = base64.b64decode('WWcmdGMlREV1aDYlWmNeOA==')
 MAIN_IV = base64.b64decode('Nm95WkRyMjJFM3ljaGpNJQ==')
 RELEASEVERSION = "OB49"
-USERAGENT = "Dalvik/2.1.0 (Linux; U; Android 13; CPH2095 Build/RKQ1.211119.001)"
+USERAGENT = "Dalvik/2.1.0 (Linux; U; Android 10; CPH2095 Build/RKQ1.211119.001)"
 SUPPORTED_REGIONS = {"IND", "BR", "US", "SAC", "NA", "SG", "RU", "ID", "TW", "VN", "TH", "ME", "PK", "CIS", "BD", "EUROPE"}
 
 # === Flask App Setup ===
@@ -72,7 +72,7 @@ async def create_jwt(region: str):
     body = json.dumps({"open_id": open_id, "open_id_type": "4", "login_token": token_val, "orign_platform_type": "4"})
     proto_bytes = await json_to_proto(body, FreeFire_pb2.LoginReq())
     payload = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, proto_bytes)
-    url = "https://clientbp.ggblueshark.com/MajorLogin"
+    url = "https://loginbp.ggblueshark.com/MajorLogin"
     headers = {
         'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
         'Content-Type': "application/octet-stream", 'Expect': "100-continue",
